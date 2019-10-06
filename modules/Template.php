@@ -14,9 +14,18 @@ class Template {
     private $specialEach = 'e';
 
     private $parts = [];
-    private $blockPointers = [];
+
     public function __construct($inputPattern) {
         $this->inputPattern = $inputPattern;
+
+        $this->evalOperators = [
+            $this->specialInline => 'evalInline',
+            $this->specialInsert => 'evalInsert',
+            $this->specialCreateFrame => 'evalCreateFrame',
+            $this->specialDropFrame => 'evalDropFrame',
+            $this->specialJump => 'evalJump',
+            $this->specialEach => 'evalEach'
+        ];
     }
 
     public function transform($valueMap) {
@@ -30,68 +39,8 @@ class Template {
 
         for ($cmdIndex = 0; $cmdIndex<$len; $cmdIndex++) {
             $cmd = $this->parts[$cmdIndex];
-            if ($cmd == $this->specialInline) {
-                $arg = $this->parts[++$cmdIndex];
-                $output[] = $arg;
-            }
-            else if ($cmd == $this->specialInsert) {
-                $arg = $this->parts[++$cmdIndex];
-                $lookup = $this->frameLookup($frames, $arg);
-                if (isset($lookup)) {
-                    $output[] = $lookup;
-                }
-                else {
-                    $output[] = "@NOTFOUND[$arg]";
-                }
-            }
-            else if ($cmd == $this->specialCreateFrame) {
-                $frames[] = [];
-            }
-            else if ($cmd == $this->specialDropFrame) {
-                array_pop($frames);
-            }
-            else if ($cmd == $this->specialJump) {
-                $arg = $this->parts[++$cmdIndex];
-                $cmdIndex = $arg-1;
-            }
-            else if ($cmd == $this->specialEach) {
-                $iterVar = $this->parts[$cmdIndex+1];
-                $valueVar = $this->parts[$cmdIndex+2];
-                $keyVar = $this->parts[$cmdIndex+3];
-                $endLoopJump = $this->parts[$cmdIndex+4];
-                
-                $cmdIndex+=4;
-
-                $currentFrame = &$frames[count($frames)-1];
-                $localKey = '@eachLocal';
-
-                if (!array_key_exists($localKey, $currentFrame)) {
-                    $iterSubject = $this->frameLookup($frames, $iterVar);
-                    if (!is_array($iterSubject)) {
-                        throw new Exception("cannot find iterable variable $iterVar");
-                    }
-                    
-                    $keys = array_keys($iterSubject);
-                    $currentFrame[$localKey] = [
-                        'keys' => $keys,
-                        'ptr' => 0,
-                        'subject' => $iterSubject
-                    ];
-                }
-                $eachLocal = &$currentFrame[$localKey];
-                $ptr = $eachLocal['ptr'];
-                $keys = $eachLocal['keys'];
-                if ($ptr < count($keys)) {
-                    $currentKey = $keys[$ptr];
-                    $currentFrame[$valueVar] = $eachLocal['subject'][$currentKey];
-                    if ($keyVar != $this->specialEmptyValue) {
-                        $currentFrame[$keyVar] = $currentKey;
-                    }
-                    $eachLocal['ptr']++;
-                }
-                else {
-                    $cmdIndex = $endLoopJump-1;
-                }
+            if (array_key_exists($cmd, $this->evalOperators)) {
+                call_user_func_array([$this, $this->evalOperators[$cmd]], [&$output, &$frames, &$cmdIndex]);
             }
             else {
                 throw new Exception("Unsupported command $cmd");
@@ -100,6 +49,76 @@ class Template {
 
         return implode('',$output);
     }
+    
+    private function evalInline(&$output, &$frames, &$cmdIndex) {
+        $arg = $this->parts[++$cmdIndex];
+        $output[] = $arg;
+    }
+
+    private function evalInsert(&$output, &$frames, &$cmdIndex) {
+        $arg = $this->parts[++$cmdIndex];
+        $lookup = $this->frameLookup($frames, $arg);
+        if (isset($lookup)) {
+            $output[] = $lookup;
+        }
+        else {
+            $output[] = "@NOTFOUND[$arg]";
+        }
+    }
+
+    private function evalCreateFrame(&$output, &$frames, &$cmdIndex) {
+        $frames[] = [];
+    }
+
+    private function evalDropFrame(&$output, &$frames, &$cmdIndex) {
+        array_pop($frames);
+    }
+
+    private function evalJump(&$output, &$frames, &$cmdIndex) {
+        $arg = $this->parts[++$cmdIndex];
+        $cmdIndex = $arg-1;
+    }
+
+    private function evalEach(&$output, &$frames, &$cmdIndex) {
+        $iterVar = $this->parts[$cmdIndex+1];
+        $valueVar = $this->parts[$cmdIndex+2];
+        $keyVar = $this->parts[$cmdIndex+3];
+        $endLoopJump = $this->parts[$cmdIndex+4];
+        
+        $cmdIndex+=4;
+
+        $currentFrame = &$frames[count($frames)-1];
+        $localKey = '@eachLocal';
+
+        if (!array_key_exists($localKey, $currentFrame)) {
+            $iterSubject = $this->frameLookup($frames, $iterVar);
+            if (!is_array($iterSubject)) {
+                throw new Exception("cannot find iterable variable $iterVar");
+            }
+            
+            $keys = array_keys($iterSubject);
+            $currentFrame[$localKey] = [
+                'keys' => $keys,
+                'ptr' => 0,
+                'subject' => $iterSubject
+            ];
+        }
+        $eachLocal = &$currentFrame[$localKey];
+        $ptr = $eachLocal['ptr'];
+        $keys = $eachLocal['keys'];
+        if ($ptr < count($keys)) {
+            $currentKey = $keys[$ptr];
+            $currentFrame[$valueVar] = $eachLocal['subject'][$currentKey];
+            if ($keyVar != $this->specialEmptyValue) {
+                $currentFrame[$keyVar] = $currentKey;
+            }
+            $eachLocal['ptr']++;
+        }
+        else {
+            $cmdIndex = $endLoopJump-1;
+        }
+    }
+
     
     private function initialize() {
         $len = strlen($this->inputPattern);
