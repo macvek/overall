@@ -1,6 +1,8 @@
 <?php
 include 'asserts.php';
 
+error_reporting(E_ALL);
+
 $path = get_include_path();
 set_include_path($path.
     PATH_SEPARATOR.'../modules'.
@@ -41,6 +43,15 @@ foreach ($instances as $testClass) {
         catch(Exception $error) {
             print '[FAILED] '.$testName.' '.$error->getMessage()."\n";
             $failed[] = $testName;
+
+            if ($showFailedStack) {
+                print ($error->getTraceAsString()."\n");
+                $prev = $error;
+                while ($prev = $prev->getPrevious()) {
+                    print ("Caused by:\n");
+                    print ($prev->getTraceAsString()."\n");
+                }
+            }
         }
     }
 }
