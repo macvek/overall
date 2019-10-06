@@ -1,8 +1,8 @@
 <?php
 
 function assertEquals($a, $b) {
-    if (! $a === $b) {
-        throw new Exception("assertEquals failed");
+    if ($a !== $b) {
+        throw new Exception("assertEquals failed, a:$a b:$b");
     }
 }
 
