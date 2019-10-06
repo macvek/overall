@@ -26,6 +26,12 @@ class TestTemplate {
         assertEquals('pattern with {{escapedOpening}} and Replaced', $value);
     }
 
+    public function testShouldEvaluateNestedValue() {
+        $template = new Template("dictionary lookup: {input.dictValue}; array lookup: {inArray.1}");
+        $value = $template->transform(['input'=>['dictValue'=>1234], 'inArray' => [1,2,3]]);
+        assertEquals('dictionary lookup: 1234; array lookup: 2', $value);
+    }
+
     public function testShouldIterateOverList() {
         $template = new Template(
             "Introduction {intro}:".

@@ -57,9 +57,27 @@ class Template {
 
     private function evalInsert(&$output, &$frames, &$cmdIndex) {
         $arg = $this->parts[++$cmdIndex];
-        $lookup = $this->frameLookup($frames, $arg);
+        
+        $firstArray = strpos($arg,'[');
+        $firstDot = strpos($arg,'.');
+
+        $hasArray = FALSE !== $firstArray;
+        $hasDot = FALSE !== $firstDot;
+
+        $argLen = strlen($arg);
+
+        $lookupName = trim(substr($arg, 0, min(
+            $hasArray ? $firstArray : $argLen, 
+            $hasDot ? $firstDot : $argLen)));
+
+        $lookup = $this->frameLookup($frames, $lookupName);
         if (isset($lookup)) {
-            $output[] = $lookup;
+            if ($hasArray || $hasDot) {
+                $output[] = $this->followAccessor([$lookupName=>$lookup], $arg);
+            }
+            else {
+                $output[] = $lookup;
+            }
         }
         else {
             $output[] = "@NOTFOUND[$arg]";
@@ -119,7 +137,17 @@ class Template {
         }
     }
 
-    
+    private function followAccessor($frame, $accessor) {
+        $levels = explode('.',$accessor);
+        $root = $frame;
+        foreach ($levels as $level) {
+            $next = $root[$level];
+            $root = $next;
+        }
+        
+        return $root;
+    }
+
     private function initialize() {
         $len = strlen($this->inputPattern);
         $notInBlock = -100;
