@@ -172,4 +172,137 @@ class TestTemplate {
         assertEquals($expected, $value);
         
     }
+
+    public function testErrorCaseOnlyEndIf() {
+        $template = new Template(
+            "{ @endif }".
+            "anything");
+
+        $fail = false;
+        try { 
+            $value = $template->transform([
+                'falseCondition' => false
+            ]);
+            $fail = true;
+        }
+        catch(Exception $e) {
+            $fail = false;
+        }
+
+        assertFalse($fail);
+    }
+
+    public function testErrorCaseIfNoEndIf() {
+        $template = new Template(
+            "{ @if falseCondition }".
+            "anything");
+
+        $fail = false;
+        try { 
+            $value = $template->transform([
+                'falseCondition' => false
+            ]);
+            $fail = true;
+        }
+        catch(Exception $e) {
+            $fail = false;
+        }
+
+        assertFalse($fail);
+    }
+
+    public function testErrorCaseStartingWithElse() {
+        $template = new Template(
+            "{ @else falseCondition }".
+            "anything");
+
+        $fail = false;
+        try { 
+            $value = $template->transform([
+                'falseCondition' => false
+            ]);
+            $fail = true;
+        }
+        catch(Exception $e) {
+            $fail = false;
+        }
+
+        assertFalse($fail);
+    }
+
+    public function testErrorCaseStartingWithElseIf() {
+        $template = new Template(
+            "{ @elseif falseCondition }".
+            "anything");
+
+        $fail = false;
+        try { 
+            $value = $template->transform([
+                'falseCondition' => false
+            ]);
+            $fail = true;
+        }
+        catch(Exception $e) {
+            $fail = false;
+        }
+
+        assertFalse($fail);
+    }
+
+    public function testErrorCaseDoubleElse() {
+        $template = new Template(
+            "{ @if falseCondition }".
+            "{ @else }".
+            "{ @else }".
+            "{ @endif }".
+            "anything");
+
+        $fail = false;
+        try { 
+            $value = $template->transform([
+                'falseCondition' => false
+            ]);
+            $fail = true;
+        }
+        catch(Exception $e) {
+            $fail = false;
+        }
+
+        assertFalse($fail);
+    }
+
+    public function testErrorCaseOnlyEach() {
+        $template = new Template("{ @each element }");
+
+        $fail = false;
+        try { 
+            $value = $template->transform([
+                'element' => []
+            ]);
+            $fail = true;
+        }
+        catch(Exception $e) {
+            $fail = false;
+        }
+
+        assertFalse($fail);
+    }
+    
+    public function testErrorCaseOnlyEndEach() {
+        $template = new Template("{ @endeach }");
+
+        $fail = false;
+        try { 
+            $value = $template->transform([
+                'element' => []
+            ]);
+            $fail = true;
+        }
+        catch(Exception $e) {
+            $fail = false;
+        }
+
+        assertFalse($fail);
+    }
+
 }

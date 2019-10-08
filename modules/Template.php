@@ -15,10 +15,11 @@ class Template {
     private $specialEach = 'e';
 
     private $parts = [];
+    private $blockStack = [];
 
     public function __construct($inputPattern) {
         $this->inputPattern = $inputPattern;
-
+        $this->blockPointers = [];
         $this->evalOperators = [
             $this->specialInline => 'evalInline',
             $this->specialInsert => 'evalInsert',
@@ -203,6 +204,10 @@ class Template {
         if ($inlineStart < $len) {
             $this->pushInline($inlineStart, $len);
         }
+
+        if (count($this->blockStack)) {
+            throw new Exception("Following blocking tags are missing: ".implode(', ',$this->blockStack));
+        }
     }
 
     private function pushInline($from, $to) {
@@ -254,6 +259,8 @@ class Template {
     }
 
     private function pushCallEach($callLine) {
+        $this->blockStack[] = 'endeach';
+
         $args = explode(' ',$callLine);
         $this->syntaxCheck('each', $args[0]);
         $argCount = count($args);
@@ -294,6 +301,8 @@ class Template {
     }
 
     private function pushCallEndEach() {
+        $this->popFromBlockStack('endeach');
+
         $lastPointer = array_pop($this->blockPointers);
         $shouldBeEach = $lastPointer[0];
         $pointerArgs = $lastPointer[1];
@@ -308,6 +317,8 @@ class Template {
     }
 
     private function pushCallIf($callLine) {
+        $this->blockStack[] = 'endif';
+        
         $args = explode(' ',$callLine);
         $this->syntaxCheck('if', $args[0]);
         $variableToTest = $args[1];
@@ -339,7 +350,7 @@ class Template {
             $this->blockPointers[] = ['elseif', ['endPointers'=>$endPointers, 'skipPointer'=>$skipPointer]];
         }
         else {
-            throw new Exception("@elseif must be placed after @if or @elseif, last pointer was ".$shouldBeIf);
+            throw new Exception("@elseif must be placed after @if or @elseif, last pointer was ".$shouldBeIfOrElseIf);
         }
     }
     
@@ -360,11 +371,13 @@ class Template {
             $this->blockPointers[] = ['else', ['endPointers'=>$endPointers]];
         }
         else {
-            throw new Exception("@else must be placed after @if or @elseif, last pointer was ".$shouldBeIf);
+            throw new Exception("@else must be placed after @if or @elseif, last pointer was ".$shouldBeIfOrElseIf);
         }
     }
 
     private function pushCallEndIf() {
+        $this->popFromBlockStack('endif');
+        
         $lastPointer = array_pop($this->blockPointers);
         $expectedPrevBlock = $lastPointer[0];
         $pointerArgs = $lastPointer[1];
@@ -429,6 +442,14 @@ class Template {
             if (array_key_exists($key, $frame)) {
                 return $frame[$key];
             }
+        }
+    }
+
+    private function popFromBlockStack($what) {
+        $fromTop = array_pop($this->blockStack);
+        if ($fromTop !== $what) {
+            $loaded = isset($fromTop) ? $fromTop : '<nothing>';
+            throw new Exception("Block operations corrupted, expected $what but found $loaded");
         }
     }
 }
