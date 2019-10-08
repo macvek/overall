@@ -354,7 +354,9 @@ class Template {
             $endPointers = $pointerArgs['endPointers'];
             $endPointers[] = $endPointer;
             
-            $this->updatePlaceholder($pointerArgs['skipPointer'], count($this->parts));
+            $nextInstructionPtr = count($this->parts);
+
+            $this->updatePlaceholder($pointerArgs['skipPointer'], $nextInstructionPtr);
             $this->blockPointers[] = ['else', ['endPointers'=>$endPointers]];
         }
         else {
