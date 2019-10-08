@@ -65,4 +65,30 @@ class TestTemplate {
 
         assertEquals($expected, $value);
     }
+
+    public function testShouldCheckIfStatement() {
+        $template = new Template(
+            "Should be ".
+            "{ @if trueCondition }".
+            "OK ".
+            "{ @endif }".
+            "Should end with this statement".
+            "{@if falseCondition }".
+            "this will not show".
+            "{@endif}"
+        );
+        
+        $value = $template->transform([
+            'trueCondition'=> true,
+            'falseCondition' => false
+        ]);
+
+        $expected =
+            "Should be ".
+            "OK ".
+            "Should end with this statement";
+
+        assertEquals($expected, $value);
+        
+    }
 }

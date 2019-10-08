@@ -8,6 +8,7 @@ class Template {
     private $specialInline = '=';
     private $specialInsert = '!';
     private $specialJump = '^';
+    private $specialJumpIfNot = '*';
     private $specialCreateFrame = '>';
     private $specialDropFrame = '<';
     
@@ -24,6 +25,7 @@ class Template {
             $this->specialCreateFrame => 'evalCreateFrame',
             $this->specialDropFrame => 'evalDropFrame',
             $this->specialJump => 'evalJump',
+            $this->specialJumpIfNot => 'evalJumpIfNot',
             $this->specialEach => 'evalEach'
         ];
     }
@@ -95,6 +97,18 @@ class Template {
     private function evalJump(&$output, &$frames, &$cmdIndex) {
         $arg = $this->parts[++$cmdIndex];
         $cmdIndex = $arg-1;
+    }
+
+    private function evalJumpIfNot(&$output, &$frames, &$cmdIndex) {
+        $variableName = $this->parts[++$cmdIndex];
+        $arg = $this->parts[++$cmdIndex];
+        $varValue = $this->frameLookup($frames, $variableName);
+        if (!isset($varValue)) {
+            throw new Exception("Cannot find value to evaluate ".$variableName);
+        }
+        if (FALSE === $varValue) {
+            $cmdIndex = $arg-1;
+        }
     }
 
     private function evalEach(&$output, &$frames, &$cmdIndex) {
@@ -225,6 +239,8 @@ class Template {
             switch($callName) {
                 case 'each': return $this->pushCallEach($callLine);
                 case 'endeach': return $this->pushCallEndEach();
+                case 'if' : return $this->pushCallIf($callLine);
+                case 'endif': return $this->pushCallEndIf();
                 default:
                     throw new Exception("Unsupported call name $callName at $tracePtr");
             }
@@ -272,7 +288,7 @@ class Template {
             $valueToBeFilledByEndingTag]);
 
         $dropFrameToBeFilled = count($this->parts)-1;
-        $this->blockPointers[] = ['each', ['entryCall'=>$entryCall, 'dropFrame'=>$dropFrameToBeFilled] ];
+        $this->blockPointers[] = ['each', ['entryCall'=>$entryCall, 'dropFrame'=>$dropFrameToBeFilled]];
     }
 
     private function pushCallEndEach() {
@@ -286,6 +302,29 @@ class Template {
         }
         else {
             throw new Exception("Expected @endeach to close @each, but found @".$shouldBeEach);
+        }
+    }
+
+    private function pushCallIf($callLine) {
+        $args = explode(' ',$callLine);
+        $this->syntaxCheck('if', $args[0]);
+        $variableToTest = $args[1];
+        $entryCall = count($this->parts);
+        $this->pushCallSequence($this->specialJumpIfNot, [$variableToTest, $this->specialPlaceholder]);
+        
+        $dropFrameToBeFilled = count($this->parts)-1;
+        $this->blockPointers[] = ['if', ['dropFrame' => $dropFrameToBeFilled]];
+    }
+
+    private function pushCallEndIf() {
+        $lastPointer = array_pop($this->blockPointers);
+        $shouldBeIf = $lastPointer[0];
+        $pointerArgs = $lastPointer[1];
+        if ($shouldBeIf === 'if') {
+            $this->updatePlaceholder($pointerArgs['dropFrame'], count($this->parts));
+        }
+        else {
+            throw new Exception("Expected @endif to close @if/@else, but found @".$shouldBeEach);
         }
     }
 
