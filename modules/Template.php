@@ -241,6 +241,7 @@ class Template {
                 case 'endeach': return $this->pushCallEndEach();
                 case 'if' : return $this->pushCallIf($callLine);
                 case 'endif': return $this->pushCallEndIf();
+                case 'else': return $this->pushCallElse();
                 default:
                     throw new Exception("Unsupported call name $callName at $tracePtr");
             }
@@ -316,11 +317,26 @@ class Template {
         $this->blockPointers[] = ['if', ['dropFrame' => $dropFrameToBeFilled]];
     }
 
-    private function pushCallEndIf() {
+    private function pushCallElse() {
         $lastPointer = array_pop($this->blockPointers);
         $shouldBeIf = $lastPointer[0];
-        $pointerArgs = $lastPointer[1];
+        $pointersArgs = $lastPointer[1];
         if ($shouldBeIf === 'if') {
+            $this->pushCallSequence($this->specialJump, [$this->specialPlaceholder]);
+            $outOfBlockJump = count($this->parts)-1;
+            $this->blockPointers[] = ['else', ['dropFrame' => $outOfBlockJump]];
+            $this->updatePlaceholder($pointersArgs['dropFrame'], count($this->parts));
+        }
+        else {
+            throw new Exception("@else must be placed after @if, last pointer was ".$shouldBeIf);
+        }
+    }
+
+    private function pushCallEndIf() {
+        $lastPointer = array_pop($this->blockPointers);
+        $shouldBeIfOrElse = $lastPointer[0];
+        $pointerArgs = $lastPointer[1];
+        if ($shouldBeIfOrElse === 'if' || $shouldBeIfOrElse == 'else') {
             $this->updatePlaceholder($pointerArgs['dropFrame'], count($this->parts));
         }
         else {

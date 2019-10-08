@@ -91,4 +91,36 @@ class TestTemplate {
         assertEquals($expected, $value);
         
     }
+
+    public function testShouldCheckIfElseStatement() {
+        $template = new Template(
+            "Should be ".
+            "{ @if trueCondition }".
+            "OK ".
+            "{ @else }".
+            "Never shown".
+            "{ @endif }".
+            "Should be ".
+            "{ @if falseCondition }".
+            "Neven shown ".
+            "{ @else }".
+            "OK ".
+            "{ @endif }"
+        );
+        
+        $value = $template->transform([
+            'trueCondition'=> true,
+            'falseCondition' => false
+        ]);
+
+        $expected =
+            "Should be ".
+            "OK ".
+            "Should be ".
+            "OK "
+        ;
+
+        assertEquals($expected, $value);
+        
+    }
 }
