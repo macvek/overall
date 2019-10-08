@@ -123,4 +123,53 @@ class TestTemplate {
         assertEquals($expected, $value);
         
     }
+
+    public function testShouldCheckElseIfStatement() {
+        $template = new Template(
+            "{ @if falseCondition }".
+            "FAILED 1.1".
+            "{ @elseif falseCondition }".
+            "FAILED 1.2".
+            "{ @else }".
+            "PASSED 1".
+            "{ @endif }".
+            "{ @if falseCondition }".
+            "FAILED 2.1 ".
+            "{ @elseif trueCondition}".
+            "PASSED 2".
+            "{ @elseif falseCondition}".
+            "FAILED 2.2".
+            "{ @endif }".
+            "{@if falseCondition}".
+            "FAILED 3.1".
+            "{@elseif falseCondition}".
+            "FAILED 3.2".
+            "{@elseif falseCondition}".
+            "FAILED 3.3".
+            "{@elseif trueCondition}".
+            "PASSED 3".
+            "{@endif}".
+            "{@if falseCondition}".
+            "FAILED 4.1".
+            "{@elseif falseCondition}".
+            "FAILED 4.2".
+            "{@endif}".
+            "PASSED 4"
+        );
+        
+        $value = $template->transform([
+            'trueCondition'=> true,
+            'falseCondition' => false
+        ]);
+
+        $expected =
+            "PASSED 1".
+            "PASSED 2".
+            "PASSED 3".
+            "PASSED 4"
+        ;
+
+        assertEquals($expected, $value);
+        
+    }
 }

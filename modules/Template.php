@@ -242,6 +242,7 @@ class Template {
                 case 'if' : return $this->pushCallIf($callLine);
                 case 'endif': return $this->pushCallEndIf();
                 case 'else': return $this->pushCallElse();
+                case 'elseif': return $this->pushCallElseIf($callLine);
                 default:
                     throw new Exception("Unsupported call name $callName at $tracePtr");
             }
@@ -310,37 +311,78 @@ class Template {
         $args = explode(' ',$callLine);
         $this->syntaxCheck('if', $args[0]);
         $variableToTest = $args[1];
-        $entryCall = count($this->parts);
         $this->pushCallSequence($this->specialJumpIfNot, [$variableToTest, $this->specialPlaceholder]);
         
-        $dropFrameToBeFilled = count($this->parts)-1;
-        $this->blockPointers[] = ['if', ['dropFrame' => $dropFrameToBeFilled]];
+        $skipPointer = count($this->parts)-1;
+        $this->blockPointers[] = ['if', ['endPointers'=>[], 'skipPointer'=>$skipPointer]];
     }
 
-    private function pushCallElse() {
+    private function pushCallElseIf($callLine) {
+        $args = explode(' ',$callLine);
+        $this->syntaxCheck('elseif', $args[0]);
+        $variableToTest = $args[1];
+        
         $lastPointer = array_pop($this->blockPointers);
-        $shouldBeIf = $lastPointer[0];
-        $pointersArgs = $lastPointer[1];
-        if ($shouldBeIf === 'if') {
+        $shouldBeIfOrElseIf = $lastPointer[0];
+        $pointerArgs = $lastPointer[1];
+        if ($shouldBeIfOrElseIf === 'if' || $shouldBeIfOrElseIf === 'elseif') {
             $this->pushCallSequence($this->specialJump, [$this->specialPlaceholder]);
-            $outOfBlockJump = count($this->parts)-1;
-            $this->blockPointers[] = ['else', ['dropFrame' => $outOfBlockJump]];
-            $this->updatePlaceholder($pointersArgs['dropFrame'], count($this->parts));
+            $endPointer = count($this->parts)-1;
+            $endPointers = $pointerArgs['endPointers'];
+            $endPointers[] = $endPointer;
+            
+            $conditionCheckPtr = count($this->parts);
+            $this->pushCallSequence($this->specialJumpIfNot, [$variableToTest, $this->specialPlaceholder]);
+            $skipPointer = count($this->parts)-1;
+            
+            $this->updatePlaceholder($pointerArgs['skipPointer'], $conditionCheckPtr);
+            $this->blockPointers[] = ['elseif', ['endPointers'=>$endPointers, 'skipPointer'=>$skipPointer]];
         }
         else {
-            throw new Exception("@else must be placed after @if, last pointer was ".$shouldBeIf);
+            throw new Exception("@elseif must be placed after @if or @elseif, last pointer was ".$shouldBeIf);
+        }
+    }
+    
+    
+    private function pushCallElse() {
+        $lastPointer = array_pop($this->blockPointers);
+        $shouldBeIfOrElseIf = $lastPointer[0];
+        $pointerArgs = $lastPointer[1];
+        if ($shouldBeIfOrElseIf === 'if' || $shouldBeIfOrElseIf === 'elseif') {
+            $this->pushCallSequence($this->specialJump, [$this->specialPlaceholder]);
+            $endPointer = count($this->parts)-1;
+            $endPointers = $pointerArgs['endPointers'];
+            $endPointers[] = $endPointer;
+            
+            $this->updatePlaceholder($pointerArgs['skipPointer'], count($this->parts));
+            $this->blockPointers[] = ['else', ['endPointers'=>$endPointers]];
+        }
+        else {
+            throw new Exception("@else must be placed after @if or @elseif, last pointer was ".$shouldBeIf);
         }
     }
 
     private function pushCallEndIf() {
         $lastPointer = array_pop($this->blockPointers);
-        $shouldBeIfOrElse = $lastPointer[0];
+        $expectedPrevBlock = $lastPointer[0];
         $pointerArgs = $lastPointer[1];
-        if ($shouldBeIfOrElse === 'if' || $shouldBeIfOrElse == 'else') {
-            $this->updatePlaceholder($pointerArgs['dropFrame'], count($this->parts));
+        $nextInstruction = count($this->parts);
+        $ifOrElseIf = $expectedPrevBlock === 'if' || $expectedPrevBlock === 'elseif';
+        $elseOrElseIf = $expectedPrevBlock === 'else' || $expectedPrevBlock === 'elseif';
+        $allowedPrevBlock = $ifOrElseIf || $elseOrElseIf;
+        
+        if ($allowedPrevBlock) {
+            if ($ifOrElseIf) {
+                $this->updatePlaceholder($pointerArgs['skipPointer'], $nextInstruction);
+            }
+            if ($elseOrElseIf) {
+                foreach ($pointerArgs['endPointers'] as $endPointer) {
+                    $this->updatePlaceholder($endPointer, $nextInstruction);
+                }
+            }
         }
         else {
-            throw new Exception("Expected @endif to close @if/@else, but found @".$shouldBeEach);
+            throw new Exception("Expected @endif to close @if/@else, but found @".$expectedPrevBlock);
         }
     }
 
